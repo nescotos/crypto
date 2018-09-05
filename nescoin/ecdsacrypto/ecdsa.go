@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"log"
 	"math/big"
 	"os"
@@ -27,16 +28,32 @@ func Sign(message string) {
 	hash := sha256.Sum256([]byte(message))
 	privateKey := readKey("private.pem")
 	r, s, err := ecdsa.Sign(rand.Reader, privateKey, hash[:])
+	signature := append(r.Bytes(), s.Bytes()...)
+	pubKey := append(privateKey.PublicKey.X.Bytes(), privateKey.PublicKey.Y.Bytes()...)
 	checkError(err, "Error signing message")
 	log.Println("R: ", r)
 	log.Println("S: ", s)
+	fmt.Printf("{Signature: [% x]}", string(signature))
+	fmt.Printf("{PubKey: [% x]}", string(pubKey))
+	Verify("Perro", signature, pubKey)
 }
 
 //Verify : Verify the Digital Signature using the public key
-func Verify(message string, r *big.Int, s *big.Int, publicKey []byte) {
+func Verify(message string, signature []byte, publicKey []byte) {
 	hash := sha256.Sum256([]byte(message))
-	key := readPublicKey(publicKey)
-	log.Println(ecdsa.Verify(key, hash[:], r, s))
+	r := big.Int{}
+	s := big.Int{}
+	sigLen := len(signature)
+	r.SetBytes(signature[:(sigLen / 2)])
+	s.SetBytes(signature[(sigLen / 2):])
+	x := big.Int{}
+	y := big.Int{}
+	keyLen := len(publicKey)
+	x.SetBytes(publicKey[:(keyLen / 2)])
+	y.SetBytes(publicKey[(keyLen / 2):])
+	key := ecdsa.PublicKey{elliptic.P256(), &x, &y}
+	//key := readPublicKey(publicKey)
+	log.Println(ecdsa.Verify(&key, hash[:], &r, &s))
 }
 
 func readKey(fileName string) *ecdsa.PrivateKey {
